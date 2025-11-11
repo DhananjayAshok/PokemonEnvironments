@@ -6,15 +6,15 @@
   <br/>
 </p>
 
+<h2 align="center">
+    <p>Gym Environments and Testbeds for Pokemon Red</p>
+</h2>
+
 <p align="center">
     <a href="https://github.com/DhananjayAshok/PokemonEnvironments/blob/main/LICENSE"><img alt="GitHub" src="https://img.shields.io/badge/license-MIT-blue"></a>
     <a href="https://dhananjayashok.github.io/"><img alt="Documentation" src="https://img.shields.io/website/http/huggingface.co/docs/transformers/index.svg?down_color=red&down_message=offline&up_message=online"></a>
 </p>
 
-
-<h3 align="center">
-    <p>Gym Environments for Pokemon Red</p>
-</h3>
 
 
 This repo is under development
