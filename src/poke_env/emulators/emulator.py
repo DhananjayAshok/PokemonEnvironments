@@ -11,6 +11,7 @@ from matplotlib import pyplot as plt
 from skimage.transform import downscale_local_mean
 from time import perf_counter
 import numpy as np
+from time import sleep
 
 
 def allocate_new_session_name(parameters, session_path):
@@ -43,10 +44,7 @@ class LowLevelActions(Enum):
         PRESS_ARROW_UP: WindowEvent.RELEASE_ARROW_UP,
         PRESS_BUTTON_A: WindowEvent.RELEASE_BUTTON_A,
         PRESS_BUTTON_B: WindowEvent.RELEASE_BUTTON_B,
-        PRESS_BUTTON_START: WindowEvent.RELEASE_BUTTON_START
-    }
-    
-    
+        PRESS_BUTTON_START: WindowEvent.RELEASE_BUTTON_START}
 
 class Emulator():
     def __init__(self, gb_path: str, init_state: str, parameters: dict, headless: bool = True, max_steps: int = None, save_video: bool = None, fast_video: bool = None, session_name: str = None, instance_id: str = None):
@@ -69,13 +67,9 @@ class Emulator():
         assert parameters != {}, "The parameters dictionary cannot be empty."
         assert headless in [True, False], "headless must be a boolean."
         self.gb_path = gb_path
-        self.init_state = init_state
+        self._set_init_state(init_state)
         # validate init_state exists and ends with .state
         self.parameters = parameters
-        if not os.path.exists(self.init_state):
-            log_error(f"Initial state file {self.init_state} does not exist.", self.parameters)
-        if not self.init_state.endswith(".state"):
-            log_error(f"Initial state file {self.init_state} is not a .state file.", self.parameters)
         if not os.path.exists(self.gb_path):
             log_error(f"GameBoy ROM file {self.gb_path} does not exist. You must obtain a ROM through official means, and then place it in the path: {self.gb_path}", self.parameters)
         if not self.gb_path.endswith(".gb"):
@@ -133,16 +127,47 @@ class Emulator():
         os.makedirs(session_path, exist_ok=True)
         return session_path
 
-    def reset(self, seed: int = None):
+
+    def set_init_state(self, init_state: str):
+        """Sets a new initial state file for the environment. and resets the environment.
+
+        Args:
+            init_state (str): Path to the new initial state file.
+        """
+        self._set_init_state(init_state)
+        self.reset()
+    
+    def _set_init_state(self, init_state: str):
+        """
+        Private function. Should not be used outside typically. Idk maybe you want Emulator.set_init_state?
+        
+        Sets a new initial state file for the environment.
+
+        Args:
+            init_state (str): Path to the new initial state file.
+        """
+        if init_state is None:
+            return
+        if not os.path.exists(init_state):
+            log_error(f"New initial state file {init_state} does not exist.", self.parameters)
+        if not init_state.endswith(".state"):
+            log_error(f"New initial state file {init_state} is not a .state file.", self.parameters)
+        self.init_state = init_state
+
+    def reset(self, new_init_state: str = None, seed: int = None):
         """_summary_
 
         Args:
+            new_init_state (str, optional): Path to a new initial state file to load. Defaults to None.
             seed (int, optional): Sets a random seed for the environment. Defaults to None.
 
         Returns:
             _type_: _description_
         """
         self.seed = seed
+        # validate the new_init_state if provided
+        if new_init_state is not None:
+            self._set_init_state(new_init_state)
         # restart game, skipping to init_state 
         with open(self.init_state, "rb") as f:
             self.pyboy.load_state(f)
@@ -178,6 +203,8 @@ class Emulator():
         Returns:
             bool: Whether the max_steps limit is reached.
         """
+        if action not in LowLevelActions:
+            log_error(f"Invalid action {action}. Must be one of {list(LowLevelActions)}", self.parameters)
         if self.step_count >= self.max_steps:
             log_error("Step called after max_steps reached. Please reset the environment.", self.parameters)
             
@@ -201,29 +228,29 @@ class Emulator():
             action (LowLevelActions): Lowest level action to perform on the emulator.
         """
         # press button then release after some steps
-        log_info(f"Running action: {action}", self.parameters)
+        #log_info(f"Running action: {action}", self.parameters)
         start_time = perf_counter()
-        self.pyboy.send_input(action)
+        self.pyboy.send_input(action.value)
         end_time = perf_counter()
         # Convert to milliseconds and seconds
         elapsed_time_ms = (end_time - start_time) * 1000
         elapsed_time_s = (end_time - start_time)
-        log_info(f"Action {action} took {elapsed_time_ms:.2f} ms or {elapsed_time_s:.2f} s", self.parameters)
+        #log_info(f"Action {action} took {elapsed_time_ms:.2f} ms or {elapsed_time_s:.2f} s", self.parameters)  # Output: Action LowLevelActions.PRESS_ARROW_LEFT took 0.01 ms or 0.00 s
         # disable rendering when we don't need it
         render_screen = self.save_video or not self.headless
         press_step = self.press_step
         self.pyboy.tick(press_step, render_screen)
-        log_info(f"Completed {press_step} ticks after pressing action {action}", self.parameters)
+        #log_info(f"Completed {press_step} ticks after pressing action {action}", self.parameters)
         start_time = perf_counter()
-        self.pyboy.send_input(LowLevelActions.release_actions[action])
+        self.pyboy.send_input(LowLevelActions.release_actions.value[action.value])
         mid_time = perf_counter()
         self.pyboy.tick(self.act_freq - press_step - 1, render_screen)
         end_time = perf_counter()
         start_to_mid_ms = (mid_time - start_time) * 1000
         mid_to_end_ms = (end_time - mid_time) * 1000
-        log_info(f"Releasing action {action} took {start_to_mid_ms:.2f} ms, followed by {mid_to_end_ms:.2f} ms for remaining ticks", self.parameters)           
+        #log_info(f"Releasing action {action} took {start_to_mid_ms:.2f} ms, followed by {mid_to_end_ms:.2f} ms for remaining ticks", self.parameters) # Output: Releasing action LowLevelActions.PRESS_ARROW_LEFT took 0.00 ms, followed by 16.13 ms for remaining ticks
         self.pyboy.tick(1, True)
-        log_info(f"Completed total of {self.act_freq} ticks for action {action}", self.parameters)
+        #log_info(f"Completed total of {self.act_freq} ticks for action {action}", self.parameters)
         if self.save_video and self.fast_video:
             self.add_video_frame()
     
@@ -255,7 +282,7 @@ class Emulator():
         return done
 
     def close(self):
-        self.pyboy.stop() # TODO: check if this is the correct way to close the pyboy emulator
+        self.pyboy.stop(save=False) # TODO: check if this is the correct way to close the pyboy emulator
         if self.full_frame_writer is not None:
             self.full_frame_writer.close()
         if self.model_frame_writer is not None:
@@ -274,14 +301,61 @@ class Emulator():
         if max_steps is None:
             max_steps = self.parameters["gameboy_hard_max_steps"]
         log_info("Starting human play mode. Use arrow keys and A/B/Start buttons to play. Close the window to exit.", self.parameters)
+        if self.headless:
+            log_error("Human play mode requires headless=False. Change the initialization", self.parameters)    
         self.reset()
         while True:
             self.pyboy.tick(1, True)
-            #self.render()
             truncated = self.step_count >= self.max_steps - 1
             if truncated:
                 break
         self.close()
+        # wait for pyboy
+        #sleep(1)
+        
+        
+    
+    def _human_input_play(self, max_steps: int = None, init_state: str = None):
+        """_summary_
+        Primarily for debugging.         
+        Allows a human to play the emulator using keyboard inputs. This routes the code through the step function. 
+        Args:
+            max_steps (int, optional): Maximum number of steps to play. Defaults to gameboy_hard_max_steps in configs.
+        """
+        if self.headless:
+            log_error("Human play mode requires headless=False. Change the initialization", self.parameters)    
+        if max_steps is None:
+            max_steps = self.parameters["gameboy_hard_max_steps"]
+        self._set_init_state(init_state)
+        character_to_action = {
+            "a": LowLevelActions.PRESS_BUTTON_A,
+            "b": LowLevelActions.PRESS_BUTTON_B,
+            "s": LowLevelActions.PRESS_BUTTON_START,
+            "u": LowLevelActions.PRESS_ARROW_UP,
+            "d": LowLevelActions.PRESS_ARROW_DOWN,
+            "l": LowLevelActions.PRESS_ARROW_LEFT,
+            "r": LowLevelActions.PRESS_ARROW_RIGHT,            
+        }
+        log_info("Starting human play mode. Use keyboard inputs: a,b,s,u,d,l,r to play. Type e to exit.", self.parameters)
+        log_info(f"Character to action mapping: \n{character_to_action}", self.parameters)        
+        self.reset()
+        exited = False
+        while not exited:
+            user_input = input("Enter action (a,b,s,u,d,l,r) or e to exit: ")
+            user_input = user_input.lower().strip()
+            if user_input == "e":
+                exited = True
+                log_info("Exiting human play mode.", self.parameters)
+                break
+            if user_input not in character_to_action:
+                log_warn(f"Invalid input {user_input}. Valid inputs are: {list(character_to_action.keys())} or e to exit.", self.parameters)
+                continue
+            action = character_to_action[user_input]
+            truncated = self.step(action)
+            if truncated:
+                log_info("Max steps reached. Exiting human play mode.", self.parameters)
+                break
+        
         
         
     
