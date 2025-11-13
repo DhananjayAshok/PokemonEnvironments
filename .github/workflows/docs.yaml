@@ -1,4 +1,4 @@
-name: website
+name: Pokemon Environments Documentation
 
 # build the documentation whenever there are new commits on main
 on:
@@ -26,7 +26,9 @@ jobs:
           python-version: '3.14'
 
       # ADJUST THIS: install all dependencies (including pdoc)
-      - run: pip install -e .
+      - run: pip install uv
+      - run: uv sync
+      - run: uv pip install -e .
       # ADJUST THIS: build your documentation into docs/.
       # We use a custom build script for pdoc itself, ideally you just run `pdoc -o docs/ ...` here.
       - run: pdoc src/poke_env -d google
