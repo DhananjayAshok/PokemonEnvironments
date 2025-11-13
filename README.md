@@ -79,3 +79,7 @@ This should open up a GameBoy window where you can play the Pokemon Red game.
 
 ```bibtex
 ```
+
+# Reference
+
+::: src.poke_env

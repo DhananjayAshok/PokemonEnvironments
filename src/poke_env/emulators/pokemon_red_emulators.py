@@ -231,7 +231,7 @@ class PokemonRedGameStateParser(GameStateParser):
         self.parsed_variables["event_flags"] = self.read_event_bits()
         self.parsed_variables["opponent_levels"] = self.get_opponent_levels()
 
-
+    
 
     
     

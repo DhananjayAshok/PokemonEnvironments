@@ -8,6 +8,7 @@ dependencies = [
     "bidict>=0.23.1",
     "click>=8.3.0",
     "matplotlib>=3.10.7",
+    "mkdocstrings-python>=1.19.0",
     "numpy>=2.3.4",
     "opencv-python>=4.11.0.86",
     "pandas>=2.3.3",

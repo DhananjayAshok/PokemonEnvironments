@@ -342,6 +342,12 @@ class Emulator(ABC):
             self.pyboy.tick(self.act_freq, True)
     
     def get_free_video_id(self) -> str:
+        """
+        Returns a new unique video ID for saving video files.
+        
+        Returns:
+            str: A new unique video ID.
+        """
         base_dir = os.path.join(self.session_path, "videos")
         videos = os.listdir(base_dir) if os.path.exists(base_dir) else []
         # all will be something.mp4, if its int.mp4, get the int
@@ -357,6 +363,9 @@ class Emulator(ABC):
         
     def start_video(self, video_id: str = None):
         """_summary_
+        Starts recording video of the emulator's screen.
+        Args:
+            video_id (str, optional): Name of the video file to save. If None, a new unique name will be generated. Defaults to None.
         """
         if video_id is not None:
             if not isinstance(video_id, str):

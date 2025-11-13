@@ -1,0 +1,8 @@
+site_name: "Pokemon Environments Documentation"
+
+theme:
+  name: "material"
+
+plugins:
+- search
+- mkdocstrings
