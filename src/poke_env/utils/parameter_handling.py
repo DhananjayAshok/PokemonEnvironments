@@ -3,12 +3,27 @@ import yaml
 from poke_env.utils.fundamental import get_logger
 
 
-def load_yaml(yaml_path):
+def load_yaml(yaml_path: str) -> dict:
+    """
+    Loads a yaml file and returns the contents as a dictionary.
+    Args:
+        yaml_path (str): Path to the yaml file.
+    Returns:
+        dict: Contents of the yaml file.
+    """
     with open(yaml_path, "r") as f:
         return yaml.load(f, Loader=yaml.FullLoader)
 
 
-def compute_secondary_parameters(params):
+def compute_secondary_parameters(params: dict):
+    """
+    Computes secondary parameters based on the primary parameters.
+    This sets up the directory structure for the project, including data, model, tmp, sync, and log directories.
+    It also initializes the logger and adds it to the parameters dictionary.
+
+    Args:
+        params (dict): Primary parameters dictionary.
+    """
     params["data_dir"] = os.path.join(params["storage_dir"], "data")
     params["model_dir"] = os.path.join(params["storage_dir"], "models")
     params["tmp_dir"] = os.path.join(params["storage_dir"], "tmp")
@@ -31,13 +46,18 @@ def compute_secondary_parameters(params):
     params["logger"] = logger
 
 
-def load_parameters(parameters=None):
+def load_parameters(parameters: dict = None) -> dict:
     """
     Loads the parameters for the project from configs/private_vars.yaml and any other yaml files in the configs directory.
 
     That is, unless a non None parameters dictionary is passed through, in which case we assume all is good and just return it.
 
-        :return: A dictionary of parameters
+    Args:
+        parameters (dict, optional): If provided, this dictionary is returned as the parameters.
+            If None, parameters are loaded from the config files. Defaults to None.
+
+    Returns:
+        dict: Parameters dictionary.
     """
     if parameters is not None:
         if "logger" not in parameters: # this is a flag that secondary parameters need to be computed

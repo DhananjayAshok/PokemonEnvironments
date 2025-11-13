@@ -36,9 +36,15 @@ class PokemonRedGameStateParser(GameStateParser):
     MAP_ROW_OFFSET = PAD
     MAP_COL_OFFSET = PAD
     def __init__(self, pyboy, parameters):
+        """
+        Initializes the Pokemon Red game state parser.
+        Args: 
+            pyboy: An instance of the PyBoy emulator.
+            parameters: A dictionary of parameters for configuration.
+        """
         super().__init__(pyboy, parameters)
         # load event names (parsed from https://github.com/pret/pokered/blob/91dc3c9f9c8fd529bb6e8307b58b96efa0bec67e/constants/event_constants.asm)
-        events_location = self.parameters["pokemon_red_events_path"]
+        events_location = self._parameters["pokemon_red_events_path"]
         with open(events_location) as f:
             event_slots = json.load(f)
         event_slots = event_slots
@@ -117,8 +123,16 @@ class PokemonRedGameStateParser(GameStateParser):
             MAP_DATA = json.load(map_data)["regions"]
         self.MAP_DATA = {int(e["id"]): e for e in MAP_DATA}
         
-    # Handle KeyErrors. TODO: Figure out what this is doing. 
-    def local_to_global(self, r: int, c: int, map_n: int):
+    def local_to_global(self, r: int, c: int, map_n: int) -> tuple[int, int]:
+        """
+        Converts local map coordinates to global map coordinates.
+        Args:
+            r (int): Local row coordinate.
+            c (int): Local column coordinate.
+            map_n (int): Map identifier.
+        Returns:
+            (int, int): Global (row, column) coordinates.
+        """
         try:
             (
                 map_x,
@@ -134,27 +148,69 @@ class PokemonRedGameStateParser(GameStateParser):
             print(f"Map id {map_n} not found in map_data.json.")
             return self.GLOBAL_MAP_SHAPE[0] // 2, self.GLOBAL_MAP_SHAPE[1] // 2
 
-    def bit_count(self, bits):
+    def bit_count(self, bits: int) -> int:
+        """
+        Counts the number of set bits (1s) in the given integer.
+        Args:
+            bits (int): The integer to count set bits in.
+        Returns:
+            int: The number of set bits.
+        """
         return bin(bits).count("1")    
     
-    def read_m(self, addr):
+    def read_m(self, addr: bytes) -> int:
+        """
+        Reads a byte from the specified memory address.
+        Args:
+            addr (int): The memory address to read from.
+        Returns:
+            int: The byte value at the specified memory address.
+        """
         #return self.pyboy.get_memory_value(addr)
-        return self.pyboy.memory[addr]
+        return self._pyboy.memory[addr]
 
     def read_bit(self, addr, bit: int) -> bool:
+        """
+        Reads a specific bit from a memory address. Adds padding so that reading bit 0 works correctly. (from https://github.com/PWhiddy/PokemonRedExperiments)
+        Args:
+            addr (int): The memory address to read from.
+            bit (int): The bit position to read (0-7).
+        Returns:
+            bool: True if the bit is set (1), False otherwise.
+        """
         # add padding so zero will read '0b100000000' instead of '0b0'
         return bin(256 + self.read_m(addr))[-bit - 1] == "1"
 
     def read_event_bits(self):
+        """
+        TODO: Redo
+        """
         return [
             int(bit) for i in range(event_flags_start, event_flags_end) 
             for bit in f"{self.read_m(i):08b}"
         ]
         
-    def get_game_coords(self):
+    def get_local_coords(self) -> tuple[int, int, int]:
+        """
+        Gets the local game coordinates (x, y, map number).
+        Returns:
+            (int, int, int): Tuple containing (x, y, map number).
+        """
         return (self.read_m(0xD362), self.read_m(0xD361), self.read_m(0xD35E))
 
+    def get_global_coords(self):
+        """
+        Gets the global coordinates of the player.
+        Returns:
+            (int, int): Tuple containing (global y, global x) coordinates.
+        """
+        x_pos, y_pos, map_n = self.get_local_coords()
+        return self.local_to_global(y_pos, x_pos, map_n)
+
     def read_hp_fraction(self):
+        """
+        TODO: Understand
+        """
         hp_sum = sum([
             self.read_hp(add)
             for add in [0xD16C, 0xD198, 0xD1C4, 0xD1F0, 0xD21C, 0xD248]
@@ -167,6 +223,9 @@ class PokemonRedGameStateParser(GameStateParser):
         return hp_sum / max_hp_sum
 
     def read_hp(self, start):
+        """
+        TODO: Understand
+        """
         return 256 * self.read_m(start) + self.read_m(start + 1)
         
     def idk_imp(self):
@@ -175,41 +234,68 @@ class PokemonRedGameStateParser(GameStateParser):
                 for i in range(event_flags_start, event_flags_end)
         ])
         self.pcount = self.read_m(0xD163)
-        
-    def get_levels(self):
+
+    def get_levels(self) -> list[int]:
+        """
+        Gets the levels of the player's party Pokemon.
+        Returns:
+            list[int]: List of levels for each Pokemon in the party. (-5 if the pokemon slot is empty)
+        """
         return [
             self.read_m(a) for a in [0xD18C, 0xD1B8, 0xD1E4, 0xD210, 0xD23C, 0xD268]
         ]    
 
-    def get_opponent_levels(self):
+    def get_opponent_levels(self) -> list:
+        """
+        Gets the levels of the opponent's Pokemon in battle.
+        Returns:
+            list: List of levels for each opponent Pokemon in the battle.
+        """
         opp_base_level = 5
         opponent_levels = [self.read_m(a) for a in [0xD8C5, 0xD8F1, 0xD91D, 0xD949, 0xD975, 0xD9A1]]
         return [level - opp_base_level for level in opponent_levels] # TODO: confirm base level
 
-    def get_badges(self):
+    def get_badges(self) -> np.array:
+        """
+        Gets the player's badges as a binary array.
+        Returns:
+            np.array: Array of 8 binary values representing whether the player has obtained each of the badges.
+        """
         # or  self.bit_count(self.read_m(0xD356))
         return np.array([int(bit) for bit in f"{self.read_m(0xD356):08b}"], dtype=np.int8)
     
-    def get_party_size(self):
+    def get_party_size(self) -> int:
+        """
+        TODO: confirm
+        Returns:
+            int: The number of Pokemon in the player's party.
+        """
         party_size = self.read_m(0xD163) # This is the number of active Pokemon in party I think. TODO: confirm it does not count fainted Pokemon
         return party_size
     
-    def isinbattle(self):
+    def isinbattle(self) -> bool:
+        """
+        Checks if the player is currently in a battle.
+        Returns:
+            bool: True if in battle, False otherwise.
+        """
         return self.read_m(0xD057) != 0
 
     def read_party(self):
+        """
+        #TODO: understand
+        """
         return [
             self.read_m(addr)
             for addr in [0xD164, 0xD165, 0xD166, 0xD167, 0xD168, 0xD169]
         ]
         
     def read_party_levels(self):
+        """
+        #TODO: understand
+        """
         min_poke_level = 2 # I don't know how this fits in yet. Do we take offset?
         return [self.read_m(addr) for addr in [0xD18C, 0xD1B8, 0xD1E4, 0xD210, 0xD23C, 0xD268]]
-    
-    def get_global_coords(self):
-            x_pos, y_pos, map_n = self.get_game_coords()
-            return self.local_to_global(y_pos, x_pos, map_n)
     
     def __repr__(self):
         return "PokemonRed"
@@ -218,7 +304,7 @@ class PokemonRedGameStateParser(GameStateParser):
         pass
 
     def parse_step(self):
-        self.parsed_variables["local_coords"] = self.get_game_coords()
+        self.parsed_variables["local_coords"] = self.get_local_coords()
         self.parsed_variables["global_coords"] = self.get_global_coords()
         self.parsed_variables["in_battle"] = self.isinbattle()
         self.parsed_variables["party_size"] = self.get_party_size()
@@ -243,10 +329,6 @@ class BasicPokemonRedEmulator(Emulator):
         gb_path = parameters["pokemon_red_gb_path"]
         game_state_parser_class = PokemonRedGameStateParser
         super().__init__(gb_path, game_state_parser_class, init_state, parameters, headless, max_steps, save_video, session_name, instance_id)
-
-    def _get_obs(self):        
-        observation = {}
-        return observation
     
     def get_env_variant(self) -> str:
         """        
